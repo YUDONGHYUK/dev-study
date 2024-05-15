@@ -9,11 +9,35 @@ interface IFile {
 }
 
 function getFile(name: string): Promise<IFile> {
-  return delay(1500, { name, body: '...', size: 100 });
+  console.log(name);
+  return delay(1000, { name, body: '...', size: 100 });
+}
+
+async function concurrent<T>(limit: number, fs: (() => Promise<T>)[]) {
+  const result: T[][] = [];
+  for (let i = 0; i < fs.length / limit; i++) {
+    const tmp: Promise<T>[] = [];
+    for (let j = 0; j < limit; j++) {
+      const f = fs[i * limit + j];
+      if (f) tmp.push(f());
+    }
+    result.push(await Promise.all(tmp));
+  }
+  return result.flat();
 }
 
 async function main() {
-  promiseRace2();
+  console.time();
+  const files = await concurrent(2, [
+    () => getFile('file1.png'),
+    () => getFile('file2.ppt'),
+    () => getFile('file3.pdf'),
+    () => getFile('file4.jpg'),
+    () => getFile('file5.gif'),
+    () => getFile('file6.jpeg'),
+  ]);
+  console.log(files);
+  console.timeEnd();
 }
 
 main();
