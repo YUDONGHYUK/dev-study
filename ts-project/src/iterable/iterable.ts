@@ -9,7 +9,6 @@ interface IFile {
 }
 
 function getFile(name: string): Promise<IFile> {
-  console.log(name);
   return delay(1000, { name, body: '...', size: 100 });
 }
 
@@ -26,16 +25,64 @@ async function concurrent<T>(limit: number, fs: (() => Promise<T>)[]) {
   return result.flat();
 }
 
+function* take<T>(length: number, iterable: Iterable<T>) {
+  const iterator = iterable[Symbol.iterator]();
+  while (length-- > 0) {
+    const { value, done } = iterator.next();
+    if (done) break;
+    yield value;
+  }
+}
+
+function* chunk<T>(size: number, iterable: Iterable<T>) {
+  const iterator = iterable[Symbol.iterator]();
+  while (true) {
+    const arr = [...take(size, { [Symbol.iterator]: () => iterator })];
+    if (arr.length) yield arr;
+    if (arr.length < size) break;
+  }
+}
+
+function* map<A, B>(
+  f: (a: A) => B,
+  iterable: Iterable<A>
+): IterableIterator<B> {
+  console.log(f);
+  for (const a of iterable) {
+    yield f(a);
+  }
+}
+
+async function fromAsync<T>(iterable: Iterable<Promise<T>>) {
+  const arr: Awaited<T>[] = [];
+  for await (const a of iterable) {
+    arr.push(a);
+  }
+  return arr;
+}
+
+async function concurrent2<T>(limit: number, fs: (() => Promise<T>)[]) {
+  const result = await fromAsync(
+    map(
+      (ps) => Promise.all(ps),
+      map((fs) => fs.map((f) => f()), chunk(limit, fs))
+    )
+  );
+  return result.flat();
+}
+
 async function main() {
   console.time();
-  const files = await concurrent(2, [
+  const files = await concurrent2(3, [
     () => getFile('file1.png'),
     () => getFile('file2.ppt'),
     () => getFile('file3.pdf'),
     () => getFile('file4.jpg'),
     () => getFile('file5.gif'),
     () => getFile('file6.jpeg'),
+    () => getFile('file7.ppt'),
   ]);
+
   console.log(files);
   console.timeEnd();
 }
