@@ -9,6 +9,7 @@ interface IFile {
 }
 
 function getFile(name: string): Promise<IFile> {
+  console.log(name);
   return delay(1000, { name, body: '...', size: 100 });
 }
 
@@ -47,7 +48,6 @@ function* map<A, B>(
   f: (a: A) => B,
   iterable: Iterable<A>
 ): IterableIterator<B> {
-  console.log(f);
   for (const a of iterable) {
     yield f(a);
   }
@@ -71,19 +71,54 @@ async function concurrent2<T>(limit: number, fs: (() => Promise<T>)[]) {
   return result.flat();
 }
 
+class FxIterator<T> {
+  constructor(public iterable: Iterable<T>) {}
+
+  chunk(size: number) {
+    return fx(chunk(size, this.iterable));
+  }
+
+  map<U>(f: (a: T) => U): FxIterator<U> {
+    return fx(map(f, this.iterable));
+  }
+
+  to<U>(f: (iterable: Iterable<T>) => U): U {
+    return f(this.iterable);
+  }
+}
+
+function fx<T>(iterable: Iterable<T>) {
+  return new FxIterator(iterable);
+}
+
+async function concurrent3<T>(limit: number, fs: (() => Promise<T>)[]) {
+  return fx(fs) //
+    .chunk(limit)
+    .map((fs) => fs.map((f) => f()))
+    .map((ps) => Promise.all(ps))
+    .to(fromAsync)
+    .then((arr) => arr.flat());
+}
+
 async function main() {
   console.time();
-  const files = await concurrent2(3, [
+  const files = await concurrent3(3, [
     () => getFile('file1.png'),
     () => getFile('file2.ppt'),
     () => getFile('file3.pdf'),
     () => getFile('file4.jpg'),
     () => getFile('file5.gif'),
     () => getFile('file6.jpeg'),
-    () => getFile('file7.ppt'),
+    () => getFile('file7.png'),
   ]);
 
   console.log(files);
+
+  const totalSize = files
+    .filter((file) => file.name.endsWith('.png'))
+    .reduce((size, file) => size + file.size, 0);
+  console.log(totalSize);
+
   console.timeEnd();
 }
 
