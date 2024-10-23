@@ -110,3 +110,68 @@ check<Concat<[1, 2, 3], [4, 5, 6]>, [1, 2, 3, 4, 5, 6]>(Pass);
 type Append<A extends any[], B> = Concat<A, [B]>;
 
 check<Append<[1, 2, 3], 4>, [1, 2, 3, 4]>(Pass);
+
+/**
+ * 배열 A의 각 요소를 특정 구분자(S)로 결합하는 문자열을 만들어내는 유틸리티 타입
+ */
+type Join<T extends any[], S extends string> = Length<T> extends 0
+  ? ''
+  : Length<T> extends 1
+  ? `${T[0]}`
+  : `${T[0]}${S}${Join<Tail<T>, S>}`;
+
+check<Join<[1, 2, 3, 4, 5], ','>, '1,2,3,4,5'>(Pass);
+check<Join<[1], ','>, '1'>(Pass);
+check<Join<[], ','>, ''>(Pass);
+
+/**
+ * 문자열 T에서 문자열 A를 찾아서 문자열 B로 치환하는 유틸리티 타입
+ */
+type Replace<
+  T extends string,
+  A extends string,
+  B extends string
+> = T extends `${infer P1}${A}${infer P2}`
+  ? Replace<`${P1}${B}${P2}`, A, B>
+  : T;
+
+check<Replace<'abcdfdfda', 'f', 'c'>, 'abcdcdcda'>(Pass);
+
+/**
+ * 문자열 T를 구분자 S로 분할하여 배열로 반환하는 유틸리티 타입
+ */
+type Split<
+  T extends string,
+  S extends string,
+  P extends any[] = []
+> = T extends `${infer A}${S}${infer B}`
+  ? Split<B, S, Append<P, A>>
+  : Append<P, T>;
+
+check<Split<'asd,f,fd,dfasd', ','>, ['asd', 'f', 'fd', 'dfasd']>(Pass);
+check<Split<'abcd', ','>, ['abcd']>(Pass);
+
+/**
+ * 배열 T를 최대 N 수준까지 평탄화 하는 유틸리티 타입
+ */
+type Flat<T, N extends number = 1> = {
+  0: T;
+  1: T extends Array<infer A> ? Flat<A, [-1, 0, 1, 2, 3, 4, 5, 6, 7][N]> : T;
+}[N extends -1 ? 0 : 1];
+
+check<Flat<[1, 2, 3, [4]], 1>, 1 | 2 | 3 | 4>(Pass);
+check<Flat<[1, 2, 3, [[4]]], 1>, 1 | 2 | 3 | [4]>(Pass);
+check<Flat<[1, 2, 3, [[4]]], 2>, 1 | 2 | 3 | 4>(Pass);
+check<Flat<[1, 2, [3, [4]]], 1>, 1 | 2 | 3 | [4]>(Pass);
+check<Flat<[1, 2, [3, [4]]], 2>, 1 | 2 | 3 | 4>(Pass);
+
+/**
+ * 배열을 지정한 깊이(n)만큼 평탄화 하는 함수
+ * @param arr : 평탄화할 배열
+ * @param n : 평탄화할 깊이
+ */
+declare function flat<T, N extends number = 1>(arr: T, n?: N): Flat<T, N>[];
+const flat1 = flat([1, 2, 3]); // number[]
+const flat2 = flat([1, 2, 3, [4]]); // number[]
+const flat3 = flat([1, 2, 3, [[4]]]); // (number | number[])[]
+const flat4 = flat([1, 2, 3, [[4]]], 2); // number[]
